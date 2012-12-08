@@ -1,0 +1,13 @@
+ArchiConTariffa : [1 2 3 ]
+Commodity : [1 2 ]
+Percorsi : [1 2 3 4 5 ]
+ListaCardinalitaCommodity : [12 13 ]
+ListaPercorsiCommodity : [1 1 1 2 2 ]
+ListaPercorsiCostiFissi : [104 195 249 18 22 ]
+Lunghezze : [34 30 14 ]
+MatricePercorsiArchiTariffa : [1 0 0 
+0 1 0 
+0 0 0 
+0 0 1 
+0 0 0 
+]

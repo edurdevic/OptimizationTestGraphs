@@ -1,0 +1,255 @@
+model "Path analisys"
+	uses "mmxprs"
+	
+	declarations
+		
+		ArchiConTariffa : set of integer													! Numero di archi con tariffa nell'intero grafo (T)!= 1..3	
+		Commodity : set of integer 															! Numero di commodity da gestire nell'intero grafo (caricato a runtime)! = 1..2
+		Percorsi : set of integer       													! Numero di percorsi presenti nel grafo!= 1..5 
+		
+		ListaCardinalitaCommodity: array(Commodity) of integer								! Vettore contenente la cardinalità di ogni commodity (Dk)
+		ListaPercorsiCommodity:  array(Percorsi) of integer									! Per tutti i percorsi nel grafo (il percorso i appartiene alla commodity v(i)
+		ListaPercorsiCostiFissi:  array(Percorsi) of integer								! Per tutti i percorsi nel grafo (il percorso i ha costo fisso pari a v(i)
+		Lunghezze:  array(ArchiConTariffa) of integer										! Lunghezze degli archi con tariffa
+		MatricePercorsiArchiTariffa: array(Percorsi, ArchiConTariffa) of integer			! Matrice degli archi con tariffa (indice di colonna) appartenenti o meno al percorso (indice di riga)
+																							! Dimensioni matrice(righe=Percorsi, colonne=ArchiConTariffa)
+																							! alla posizione col valore '1' troviamo un arco con tariffa)
+						
+		varContaArchiTariffa: integer														! variabile di appoggio per stampa risultati matrice
+		varM=100000 																		! Numero grande per la linearizzazione	pari al costo massimo dei toll free path																							
+		tempoInizio:integer																	! Memorizza il tempo di inizio dell'elaborazione
+		tempoFine:integer																	! Memorizza il tempo di fine dell'elaborazione
+		
+		h: array(Percorsi) of mpvar															! variabili decisionali indicano quale percorso viene scelto (soltanto 1!)
+		l: array(Percorsi) of mpvar															! variabili che descrivono la lunghezza totale del percorso
+	    r: array(Percorsi,ArchiConTariffa) of mpvar											! variabile decisionale: indica se l'arco viene percorso (assumento valore ta) oppure no (assume valore 0) 
+	    t: mpvar																			! variabile decisionale costo arco tariffa
+	    
+	 end-declarations
+	
+	
+	! Inizializzazione variabili Da file esterno
+	initializations from 'PathAnalisysVecchioSPGMReduced.dat'
+		ArchiConTariffa
+		Commodity
+		Percorsi
+	
+		ListaCardinalitaCommodity
+		ListaPercorsiCommodity
+		ListaPercorsiCostiFissi
+		Lunghezze
+		MatricePercorsiArchiTariffa
+	end-initializations
+	
+	
+	! Chiusura inizializzazione variabili da file esterno
+	finalize(ArchiConTariffa) 
+	finalize(Commodity)
+	finalize(Percorsi)
+	
+	
+	
+	! ##########################################################################################################
+	! ################################ INIZIO PROCEDURE PER LA STAMPA ED IL DEBUG ##############################
+	! ##########################################################################################################
+	
+	procedure StampaMatrici
+	writeln("");
+		writeln("Elenco degli archi con tariffa appartenenti ai vari percorsi:");
+		forall(p in Percorsi) do
+			varContaArchiTariffa:=0;
+			forall(a in ArchiConTariffa) do
+				if (MatricePercorsiArchiTariffa (p,a) = 1) then
+					if (varContaArchiTariffa = 0) then 
+						write("Per il percorso ", p , " gli archi con tariffa sono: ");
+					end-if
+					write(a,".") 
+					varContaArchiTariffa+=1;
+				end-if
+			end-do
+			if (varContaArchiTariffa = 0) then 
+				write("Il percorso ", p, " è toll free path.")
+			end-if
+			writeln("");
+		end-do
+		writeln("");writeln("")
+		
+		end-procedure
+	
+	! ##########################################################################################################
+	
+	procedure StampaDebug
+		writeln("");
+		writeln("");
+		writeln("");	
+		
+		writeln("");
+		writeln("archi con tariffa appartenenti ai vari percorsi:");
+		forall(p in Percorsi)
+			do
+				forall(a in ArchiConTariffa) write(MatricePercorsiArchiTariffa (p,a), " ");
+				writeln("");
+			end-do	
+	
+		writeln("");writeln("");writeln("");
+		
+		writeln("");
+		writeln("-----------debug");
+		forall(p in Percorsi, a in ArchiConTariffa |MatricePercorsiArchiTariffa(p,a)=1)
+			writeln(a, "° arco con tariffa presente nel percorso ", p)
+		forall(p in Percorsi, a in ArchiConTariffa |MatricePercorsiArchiTariffa(p,a)=0)
+			writeln(a, "° arco con tariffa non presente nel percorso ", p)
+		writeln("-----------fine debug");
+		writeln("");
+		writeln("-----------debugfiltricommodity");
+		forall(k in Commodity, p in Percorsi| k=ListaPercorsiCommodity(p))
+			writeln("il percorso ",p, " è attraversato dalla commodity ", k)
+			!writeln(a, "° arco con tariffa presente nel percorso ", p)
+		writeln("-----------fine debugfiltricommodity");
+		writeln("");	writeln("");
+	
+		writeln("");
+		writeln("Valore delle variabili indicatrici dei percorsi:");
+		forall(p in Percorsi) write(p , ": " , getsol(h(p)) , " ");
+		writeln("");	writeln("");
+	
+	end-procedure
+	
+	
+	! ##########################################################################################################
+	
+	
+	procedure StampaDatiIniziali
+		writeln("Lista commodity e loro cardinalità:");
+			forall(k in Commodity) writeln("Commodity " , k, ": " , ListaCardinalitaCommodity(k), " ");
+		writeln("");	writeln("");
+	
+		writeln("Percorsi utilizzati:");
+			forall(k in Commodity)
+			   do
+				  write("La commodity ",k, " viaggia sui percorsi: ")
+				  forall( p in Percorsi| k=ListaPercorsiCommodity(p)) write(p, ",")
+				  writeln("");
+				end-do
+		writeln("");	writeln("");
+				
+		writeln("Lunghezze archi con tariffa:");
+			forall(a in ArchiConTariffa)  writeln("L'arco con tariffa ",a, " ha lunghezza: ",Lunghezze(a))
+		writeln("");	writeln("");
+				
+		writeln("Costi fissi complessivi di ogni percorso:");
+			forall(p in Percorsi) writeln("Percorso ", p, ": ", ListaPercorsiCostiFissi (p) , " ");
+		writeln("");
+	end-procedure
+	
+	
+	! ##########################################################################################################
+	
+	
+	procedure StampaRisultati
+	
+		writeln("Valore del costo chilometrico assegnato: ",getsol(t));
+	
+	writeln("");
+		writeln("Percorsi soluzione:");
+			forall(k in Commodity, p in Percorsi| k=ListaPercorsiCommodity(p))
+				if (getsol(h(p))=1) then
+					writeln("La commodity ", k , " utilizza il percorso " , p, ".")
+				end-if	
+		writeln("");
+		writeln("Funzione obiettivo: ",getobjval);
+		writeln("");
+		writeln("");	
+		writeln("Misurazione del tempo impiegato in millisecondi: ", (tempoFine-tempoInizio));
+		writeln("");
+		 
+	end-procedure
+	
+	
+	! ##########################################################################################################
+	
+	! Le procedure attivano e disattivano la scrittura su disco modificando lo standard output
+	procedure StampaFileOn
+	  fopen("PathAnalisysResult.txt", F_OUTPUT)
+	end-procedure
+	
+	procedure StampaFileOff
+	  fclose(F_OUTPUT)
+	end-procedure
+	
+	
+	! ##########################################################################################################
+	! ################################## FINE PROCEDURE PER LA STAMPA ED IL DEBUG ##############################
+	! ##########################################################################################################
+	
+	
+	! salvataggio istante inizio elaborazioni per calcolo effettivo computazione
+	tempoInizio:=currenttime
+	
+	! FUNZIONE OBIETTIVO 
+	! massimizzazione del profitto del leader
+	! max S(k app K) S(p app Pk) dk S(a app Tp) rpa
+	
+	profitto := sum(k in Commodity) sum(p in Percorsi | k=ListaPercorsiCommodity(p)) ListaCardinalitaCommodity(k)*(sum (a in ArchiConTariffa | MatricePercorsiArchiTariffa(p,a) = 1)r(p,a))
+	
+	
+	! 1 VINCOLO
+	! il vincolo impone la scelta di un solo percorso
+	! vincolo monocomm: sum(p in Percorsi) h(p)=1
+	forall(k in Commodity) sum(p in Percorsi | k=ListaPercorsiCommodity(p)) h(p)=1
+	
+	
+	! 2 VINCOLO
+	! il vincolo stabilisce che la lunghezza del percorso scelto deve superare quella degli altri
+	!vincolo monocomm: forall(p in Percorsi) l(p)>=sum(q in Percorsi) h(q)*ListaPercorsiCostiFissi(q)+sum(q in Percorsi,a in ArchiConTariffa |MatricePercorsiArchiTariffa(q,a)=1)r(q,a)
+	forall(k in Commodity, p in Percorsi| k=ListaPercorsiCommodity(p)) l(p)>=sum(q in Percorsi| k=ListaPercorsiCommodity(q)) h(q)*ListaPercorsiCostiFissi(q)+sum(q in Percorsi,a in ArchiConTariffa | k=ListaPercorsiCommodity(q) and MatricePercorsiArchiTariffa(q,a)=1)r(q,a)
+	
+	! 3 VINCOLO
+	! vincolo per il calcolo della lunghezza del percorso
+	! vincolo monocomm: forall(p in Percorsi) l(p)=ListaPercorsiCostiFissi(p)+sum(a in ArchiConTariffa |MatricePercorsiArchiTariffa(p,a)=1) CostoKM*t(a)
+	forall(k in Commodity, p in Percorsi| k=ListaPercorsiCommodity(p)) l(p)=ListaPercorsiCostiFissi(p)+sum(a in ArchiConTariffa |MatricePercorsiArchiTariffa(p,a)=1) Lunghezze(a)*t
+	
+	! 4 VINCOLO
+	! I vincolo di linearizzazione
+	forall(p in Percorsi, a in ArchiConTariffa |MatricePercorsiArchiTariffa(p,a)=1) r(p,a)-Lunghezze(a)*t<=(1-h(p))*varM
+	
+	! 5 VINCOLO
+	! II vincolo di linearizzazione
+	forall(p in Percorsi, a in ArchiConTariffa |MatricePercorsiArchiTariffa(p,a)=1) r(p,a)-Lunghezze(a)*t>=-(1-h(p))*varM
+	
+	! 6 VINCOLO
+	! III vincolo di linearizzazione 
+	forall(p in Percorsi, a in ArchiConTariffa)r(p,a)<=h(p)*varM
+	
+	! 7 VINCOLO
+	! inizializzazione delle variabili decisionali a binary
+	! indicano il percorso scelto tra quelli disponibili 
+	forall(p in Percorsi) h(p) is_binary
+	
+	! 8 VINCOLO
+	! il vincolo impone che ta>=0
+	t>=0
+	
+	! 9 VINCOLO
+	! il vincolo impone che rpa>=0
+	forall(p in Percorsi, a in ArchiConTariffa)r(p,a)>=0 
+	
+	
+	! impongo al risolutore la massimizzazione della funzione obiettivo
+	maximize(profitto)
+	
+	! salvataggio istante finale elaborazioni per calcolo effettivo computazione
+	tempoFine:=currenttime
+	
+	! Stampa dei risultati reindirizzata su file
+	!StampaFileOn
+	
+	! stampa risultati
+	StampaDatiIniziali
+	StampaMatrici
+	StampaRisultati
+	
+	! Stampa dei risultati reindirizzata sul default /video
+	StampaFileOff
+
+end-model

@@ -1,0 +1,379 @@
+model FormulazioneArchi
+uses "mmxprs"; !gain access to the Xpress-Optimizer solver
+
+parameters 
+	DEBUG=0 ! Mettere a 1 per attivare messaggi Debug
+	NEXIST=-1 ! Valore di Flag che indica arco inesistente
+	UBM=2 ! 0 per dijkstra; 1 per tool free path; 2 Per dijkstra MODIFICATO
+	WINPUT=0 ! 0 per scrivere le matrici caricate , 1 altrimenti
+	NOMEFILEINPUT='filearchi5.dat'
+	NOMEFILEOUTPUT='outSegatto.txt'
+	FILEOUTPUT=0 !Mettere a 1 per attivare l'output file 
+end-parameters
+
+function dijkstramod(source,dest:integer,archicosto: array(N:set of integer,set of integer) of integer) :integer !
+	declarations
+		dist: array(N) of integer
+		minimad, nodovicino : integer
+		s,q: set of integer
+	end-declarations
+	! Metto tutte le distanze a infinito e quella della sorgente a 0 
+	forall (n in N) do
+		dist(n):=MAX_INT
+	end-do
+	dist(source):=0
+	
+	! Inizializzo s a insieme vuoto e q con tutti i nodi tranne la sorgente. 
+	s:={} ! Nodi gi� processati 
+	q:=N-{source} ! Nodi da processare
+	
+	! Assegno una distanza ai nodi direttamente collegati. 
+	forall (n in q|archicosto(source,n)<>NEXIST) do
+		dist(n):=archicosto(source,n)
+	end-do
+	
+	if DEBUG = 1 then
+		writeln("Dijkstra: le distanze dal nodo ",source," sono ", dist)
+	end-if
+	
+	while ({dest}<=q) do 
+		! Trovo il nodo con distanza minore
+		minimad:=MAX_INT
+		forall (n in q) do
+			if dist(n)<=minimad then
+				minimad:=dist(n)
+				nodovicino:=n
+			end-if
+		end-do
+		if DEBUG = 1 then
+			writeln("Dijkstra MOD: il nodo pi� vicino (non ancora analizzato) �: ", nodovicino)
+		end-if
+		s:=s+{nodovicino}
+		q:=q-{nodovicino}
+		
+		! Rilasso le distanze degli altri nodi se sono collegati e se il nodo non � a distanza Infinita
+		forall (n in q|archicosto(nodovicino,n)<>NEXIST and minimad<>MAX_INT) do
+			if (dist(n)>dist(nodovicino)+archicosto(nodovicino,n))then
+				dist(n):=dist(nodovicino)+archicosto(nodovicino,n)
+				if DEBUG = 1 then
+					writeln("Dijkstra MOD: le distanze dal nodo ",source," sono ", dist)
+				end-if
+			end-if
+		end-do	
+	end-do
+	if DEBUG =1 then
+		writeln("Dijkstra MOD torna il valore ",dist(dest)," (distanza minima) per l'arco ", source, " - ",dest," ")
+		writeln
+	end-if
+	returned:=dist(dest)
+end-function
+	! 
+		
+
+function dijkstra(source,dest:integer,archicosto: array(N:set of integer,set of integer) of integer) :integer !
+	declarations
+		dist: array(N) of integer
+		minimad, nodovicino : integer
+		s,q: set of integer
+	end-declarations
+	! Metto tutte le distanze a infinito e quella della sorgente a 0 
+	forall (n in N) do
+		dist(n):=MAX_INT
+	end-do
+	dist(source):=0
+	
+	! Inizializzo s a insieme vuoto e q con tutti i nodi tranne la sorgente. 
+	s:={} ! Nodi gi� processati 
+	q:=N-{source} ! Nodi da processare
+	
+	! Assegno una distanza ai nodi direttamente collegati. 
+	forall (n in q|archicosto(source,n)<>NEXIST) do
+		dist(n):=archicosto(source,n)
+	end-do
+	
+	if DEBUG = 1 then
+		writeln("Dijkstra: le distanze dal nodo ",source," sono ", dist)
+	end-if
+	
+	while (not q<={-1}) do 
+		! Trovo il nodo con distanza minore
+		minimad:=MAX_INT
+		forall (n in q) do
+			if dist(n)<=minimad then
+				minimad:=dist(n)
+				nodovicino:=n
+			end-if
+		end-do
+		if DEBUG = 1 then
+			writeln("Dijkstra: il nodo pi� vicino (non ancora analizzato) �: ", nodovicino)
+		end-if
+		s:=s+{nodovicino}
+		q:=q-{nodovicino}
+		
+		! Rilasso le distanze degli altri nodi se sono collegati e se il nodo non � a distanza Infinita
+		forall (n in q|archicosto(nodovicino,n)<>NEXIST and minimad<>MAX_INT) do
+			if (dist(n)>dist(nodovicino)+archicosto(nodovicino,n))then
+				dist(n):=dist(nodovicino)+archicosto(nodovicino,n)
+				if DEBUG = 1 then
+					writeln("Dijkstra: le distanze dal nodo ",source," sono ", dist)
+				end-if
+			end-if
+		end-do	
+	end-do
+	if DEBUG =1 then
+		writeln("Dijkstra torna il valore ",dist(dest)," (distanza minima) per l'arco ", source, " - ",dest," ")
+		writeln
+	end-if
+	returned:=dist(dest)
+end-function
+
+function calculateUB(n1,n2,source,dest,l:integer,archicosto: array(set of integer,set of integer) of integer) :integer
+	if UBM=1 then
+		if DEBUG =1 then
+			writeln("Upperbound calcolato per ",n1," ",n2," sulla commodity con partenza ", source," e destinazione ", dest, " � : ", archicosto(source,dest))
+		end-if
+		returned:=archicosto(source,dest)
+	end-if
+	if UBM=0 then
+		dj1:=dijkstra(source,n1,archicosto)
+		dj2:=dijkstra(n2,dest,archicosto)
+		if (dj1=MAX_INT or dj2=MAX_INT) then
+			if DEBUG=1 then
+				writeln("Upperbound calcolato per ",n1," ",n2," sulla commodity con partenza ", source," e destinazione ", dest, " � : 0 (NR)")
+			end-if
+			returned:=0
+		end-if
+		temp:=archicosto(source,dest)-dj1-dj2-l
+		if DEBUG =1 then
+			writeln("Upperbound calcolato per ",n1," ",n2," sulla commodity con partenza ", source," e destinazione ", dest, " � : ", temp)
+		end-if
+		returned:=temp
+	end-if
+	if UBM=2 then
+		dj1:=dijkstramod(source,n1,archicosto)
+		dj2:=dijkstramod(n2,dest,archicosto)
+		if (dj1=MAX_INT or dj2=MAX_INT) then
+			if DEBUG=1 then
+				writeln("Upperbound calcolato per ",n1," ",n2," sulla commodity con partenza ", source," e destinazione ", dest, " � : 0 (NR)")
+			end-if
+			returned:=0
+		else
+			temp:=archicosto(source,dest)-dj1-dj2-l
+			if DEBUG =1 then
+				writeln("Upperbound calcolato per ",n1," ",n2," sulla commodity con partenza ", source," e destinazione ", dest, " � : ", temp)
+			end-if
+		end-if
+		returned:=temp
+	end-if
+end-function
+
+procedure printmat(toprint: array(INDICE1:set of integer,INDICE2:set of integer) of integer )
+	write ("    ")
+	forall (n in INDICE1) do 
+		write (" ", strfmt(n,3))
+	end-do
+	writeln("")
+forall (n1 in INDICE1) do 
+	write (strfmt(n1,3))
+	forall (n2 in INDICE2) do 
+		write (" ", strfmt(toprint(n1,n2),3))
+	end-do
+	writeln("")
+end-do
+end-procedure
+
+
+
+declarations
+	
+	! Dichiarazione parametri modello
+	NODI : set of integer
+	COMMODITY : set of integer
+	archic: dynamic array(NODI,NODI) of integer
+	lunghezzarchi: dynamic array(NODI,NODI) of integer
+	occorrenza:dynamic array(COMMODITY) of integer
+	percorsoc:dynamic array(COMMODITY,NODI) of integer
+	
+	! Dichiarazione variabili appoggio
+	UPPERBOUND,UPPERBOUND2,TS1,TS2,TS3: integer	
+	! Dichiarazione variabili decisionali
+	y: mpvar ! moltiplicatore della lunghezza per le tariffe
+	x: array(NODI,NODI,COMMODITY) of mpvar ! utilizzo (=1)/ non utilizzo (=0)arco
+	landa: array (NODI,COMMODITY) of mpvar ! variabili duali
+	P: array (NODI,NODI,COMMODITY) of mpvar ! 0 se X(n,n) = 0 oppure y*lunghezzarchi(n,n) se x(n,n)=1 
+
+end-declarations
+
+initializations from NOMEFILEINPUT 
+	NODI
+	COMMODITY
+archic 
+lunghezzarchi 
+occorrenza 
+percorsoc
+end-initializations
+
+!finalize(NODI)
+!finalize(COMMODITY)
+
+if FILEOUTPUT = 1 then
+	fopen(NOMEFILEOUTPUT,F_OUTPUT)
+end-if
+
+
+if WINPUT = 1 then
+	writeln("Le Commodity sono : ",COMMODITY)
+	writeln("Matrice archi costo fisso (",NEXIST," = NA): ")
+	printmat(archic)
+	writeln
+	writeln("Lunghezza archi a tariffa(0 = NA): ")
+	printmat(lunghezzarchi)
+end-if
+TS1:=currenttime
+
+writeln
+writeln("Dati caricati correttamente ")
+
+! Qui vanno le Istruzioni di controllo del grafo
+
+! Funzione Obiettivo 
+	Objective:= sum (k in COMMODITY,n1 in NODI, n2 in NODI) occorrenza(k)*P(n1,n2,k)
+
+! Dominio variabili decisionali
+
+	! y: varaibile libera
+	! landa: variabile libera 
+	! x: variabile binaria
+	forall (n1 in NODI, n2 in NODI,k in COMMODITY|archic(n1,n2)<>NEXIST) do 
+		create(x(n1,n2,k))
+		x (n1,n2,k) is_binary
+	end-do
+	!P: maggiore di 0 reale se non si fanno ipotesi su dati partenza
+	forall (n1 in NODI, n2 in NODI,k in COMMODITY|archic(n1,n2)<>NEXIST) do 
+		create(P(n1,n2,k))
+		P (n1,n2,k) >= 0 
+	end-do
+
+! Vincoli 
+
+	! Se l'arco � inesitente, non ci si pu� passare (Inutile da formulazione 3 in poi.)
+	
+	!forall (n1 in NODI, n2 in NODI,k in COMMODITY) do 
+	!	if archic(n1,n2)=-1 then
+	!		x(n1,n2,k)<=0
+	!	end-if
+	!end-do	
+	 
+	! Ammissibilit� Primale
+	forall (k in COMMODITY,n in NODI) do
+		sum (n0 in NODI|archic(n0,n)<>NEXIST)x(n0,n,k)- sum (n0 in NODI|archic(n,n0)<>NEXIST) x(n,n0,k)= percorsoc(k,n)
+	end-do
+	
+	! Ammissibilit� duale  
+	forall (k in COMMODITY,h in NODI,t in NODI) do
+		if archic(t,h)<>NEXIST then
+			landa(h,k)-landa(t,k)<=archic(t,h)+y*lunghezzarchi(t,h)
+		end-if
+	end-do
+	
+	! Vincolo dualit� forte (Soluzioni coincidenti) 
+	forall (k in COMMODITY) do
+		! Trovo i nodi di Origine e destinazione per la commodity
+		forall (n in NODI) do
+			if percorsoc(k,n)=1 then
+				dest:=n
+			end-if
+			if percorsoc(k,n)=-1 then
+				origine:=n
+			end-if
+		end-do
+		
+		sum(n1 in NODI, n2 in NODI|archic(n1,n2)<>NEXIST) (archic(n1,n2)*x(n1,n2,k)+P(n1,n2,k))=landa(dest,k)-landa(origine,k)
+	end-do
+	
+	! Linearizzazione (3 vincoli)
+	
+	
+	forall (k in COMMODITY,n1 in NODI,n2 in NODI) do	
+		P(n1,n2,k)<=y*lunghezzarchi(n1,n2) 
+	end-do
+	
+	UPPERBOUND:=0
+	UPPERBOUND2:=0
+	forall (k in COMMODITY,n1 in NODI,n2 in NODI|archic(n1,n2)<>NEXIST and lunghezzarchi(n1,n2)<>0) do
+		! Trovo i nodi di Origine e destinazione per la commodity
+		forall (n in NODI) do
+			if percorsoc(k,n)=1 then
+				dest:=n
+			end-if
+			if percorsoc(k,n)=-1 then
+				origine:=n
+			end-if
+		end-do
+		
+		UPPERBOUND:=calculateUB(n1,n2,origine,dest,archic(n1,n2),archic)
+		
+		P(n1,n2,k)<=x(n1,n2,k)*UPPERBOUND
+		
+		if UPPERBOUND2<(UPPERBOUND/lunghezzarchi(n1,n2)) then
+			UPPERBOUND2:=ceil (UPPERBOUND/lunghezzarchi(n1,n2))
+		end-if
+	end-do
+	if DEBUG =1 then
+		writeln("L'upperbound N è : ", UPPERBOUND2)
+	end-if	
+	forall (k in COMMODITY,n1 in NODI,n2 in NODI|archic(n1,n2)<>NEXIST) do
+		y*lunghezzarchi(n1,n2)-P(n1,n2,k)<=(1-x(n1,n2,k))*UPPERBOUND2*lunghezzarchi(n1,n2) 
+	end-do
+	
+writeln("Modello generato correttamente ")
+TS2:=currenttime	
+
+! Calcolo risultato
+maximize (Objective)
+
+! Stampa tempi calcolo & risultato
+
+writeln("Fine calcolo ")
+writeln
+TS3:=currenttime
+T1:=TS2-TS1
+T2:=TS3-TS2
+writeln("Tempo necessario per impostare il Modello: ",T1,"ms")
+writeln("Tempo necessario per il calcolo: ",T2,"ms")
+writeln
+writeln("Guadagno del Leader: ",getobjval)
+writeln("Risultato(moltiplicatore lunghezza): ", getsol(y))
+
+
+! Per tutte le commodity stampo il percorso del follower.
+
+forall (k in COMMODITY) do 
+writeln
+write("Percorso per commodity(",k,"): ")
+		forall (n in NODI) do
+			if percorsoc(k,n)=1 then
+				dest:=n
+			end-if
+			if percorsoc(k,n)=-1 then
+				origine:=n
+			end-if
+		end-do
+		node:=origine
+		repeat 		
+			forall (n in NODI|archic(node,n)<>NEXIST) do
+				if getsol(x(node,n,k))=1 then
+					write(node," -> ")
+					node:=n
+				end-if
+			end-do
+		until node = dest	
+write(node)
+end-do
+writeln
+
+if FILEOUTPUT = 1 then
+	fclose(F_OUTPUT)
+end-if
+
+end-model

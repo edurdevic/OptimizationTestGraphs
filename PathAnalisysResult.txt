@@ -1,0 +1,58 @@
+Lista commodity e loro cardinalità:
+Commodity 1: 1 
+Commodity 2: 1 
+
+
+Percorsi utilizzati:
+La commodity 1 viaggia sui percorsi: 1,2,3,
+La commodity 2 viaggia sui percorsi: 4,5,6,7,8,9,10,11,12,
+
+
+Lunghezze archi con tariffa:
+L'arco con tariffa 1 ha lunghezza: 1
+L'arco con tariffa 2 ha lunghezza: 2
+L'arco con tariffa 3 ha lunghezza: 1
+L'arco con tariffa 4 ha lunghezza: 4
+
+
+Costi fissi complessivi di ogni percorso:
+Percorso 1: 16 
+Percorso 2: 5 
+Percorso 3: 7 
+Percorso 4: 11 
+Percorso 5: 9 
+Percorso 6: 21 
+Percorso 7: 17 
+Percorso 8: 14 
+Percorso 9: 25 
+Percorso 10: 10 
+Percorso 11: 18 
+Percorso 12: 14 
+
+
+Elenco degli archi con tariffa appartenenti ai vari percorsi:
+Per il percorso 1 gli archi con tariffa sono: 1.
+Per il percorso 2 gli archi con tariffa sono: 3.
+Il percorso 3 è toll free path.
+Per il percorso 4 gli archi con tariffa sono: 1.2.
+Per il percorso 5 gli archi con tariffa sono: 1.4.
+Per il percorso 6 gli archi con tariffa sono: 1.
+Per il percorso 7 gli archi con tariffa sono: 2.
+Per il percorso 8 gli archi con tariffa sono: 2.3.
+Per il percorso 9 gli archi con tariffa sono: 3.4.
+Per il percorso 10 gli archi con tariffa sono: 3.
+Per il percorso 11 gli archi con tariffa sono: 4.
+Il percorso 12 è toll free path.
+
+
+Valore del costo chilometrico assegnato: 2
+
+Percorsi soluzione:
+La commodity 1 utilizza il percorso 2.
+La commodity 2 utilizza il percorso 10.
+
+Funzione obiettivo: 4
+
+
+Misurazione del tempo impiegato in millisecondi: 115
+
